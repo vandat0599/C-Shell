@@ -4,7 +4,7 @@
 #include<sys/wait.h> 
 #include <stdlib.h>
 #include <string.h>
-#include <readline/readline.h>
+#include <fcntl.h>
 
 #define MAX_LINE 80 /* The maximum length command */
 
@@ -15,7 +15,6 @@ char **getInput(char *input) {
     char *separator = " ";
     char *parsed;
     int index = 0;
-
     parsed = strtok(inputCpy, separator);
     while (parsed != NULL) {
         command[index] = parsed;
@@ -28,7 +27,27 @@ char **getInput(char *input) {
     return command;
 }
 
-int main() { 
+int getIndex(char** arr, char* s){
+	for(int i=0;arr[i]!=NULL;i++){
+		if(strcmp(arr[i],s)==0){
+			return i;
+		}
+	}
+	return -1;
+}
+
+int getDup2FileDiscriptor(char* fileName, char operator){
+	int fileDes = open(fileName,O_RDWR|O_CREAT);
+	if(fileDes!=-1){
+		//remove all content if file existed
+		truncate(fileName,0);
+	}else{
+		printf("Can't open file '%s'",fileName);
+	}
+	return operator=='>'?dup2(fileDes,STDOUT_FILENO):dup2(fileDes,STDIN_FILENO);
+}
+
+int main() {
 	int stat_loc;
 	char* prevCommand;
 	int hasPrev = 0;
@@ -38,10 +57,11 @@ int main() {
 		printf("\n--dddunix> ");
 		cmdInput = gets(cmdInput);
 		arrCmd = getInput(cmdInput);
-		int canRunParallel = 0;
 		if(strcmp(arrCmd[0],"exit")==0){
 			return 0;
 		}
+
+		//check history
 		if(strcmp(cmdInput,"!!")==0){
 			if(hasPrev){
 				arrCmd = getInput(prevCommand);
@@ -54,17 +74,35 @@ int main() {
 			prevCommand = malloc(strlen(cmdInput)+1);
 			strcpy(prevCommand,cmdInput);
 		}
-		int index = 0;
-		while(arrCmd[index]){
-			if(strchr(arrCmd[index],'&')){
-				canRunParallel = 1;
-				arrCmd[index] = NULL;
-				break;
-			}
-			++index;
+
+		// check Redirecting Input and Output
+		int hasLargerOpe = getIndex(arrCmd,">")!=-1;
+		int hasSmallerOpe = getIndex(arrCmd,"<") != -1;
+		char operatorRedirect = (hasLargerOpe||hasSmallerOpe)?(hasLargerOpe?'>':'<'):' ';
+		int indexOperatorRedirect = hasLargerOpe?getIndex(arrCmd,">"):getIndex(arrCmd,"<");
+		arrCmd[indexOperatorRedirect] = NULL;
+		int canRedirect = operatorRedirect!=' ' && arrCmd[indexOperatorRedirect + 1] != NULL;
+		printf(">: %d, <: %d, operator: %c, index: %d",hasLargerOpe, hasSmallerOpe, operatorRedirect, indexOperatorRedirect);
+
+		//check & in cmd for running cmd parallel
+		int indexOfAndOperator = getIndex(arrCmd,"&");
+		int canRunParallel = indexOfAndOperator!=-1?1:0;
+		if(canRunParallel){
+			arrCmd[getIndex(arrCmd,"&")] = NULL;
 		}
+
+		//create a child process
 		int child_pid = fork();
         if (child_pid == 0) {
+			//run cmd
+
+			//Redirecting Input and Output
+			if(canRedirect){
+				if (getDup2FileDiscriptor(arrCmd[indexOperatorRedirect+1],operatorRedirect)==-1){
+					printf("dup2 err\n");
+				}
+			}
+
             execvp(arrCmd[0], arrCmd);
 			if(strcmp(cmdInput,"!!")!=0){
             	printf("---dddunix bash '%s': command not found\n",cmdInput);
@@ -78,13 +116,6 @@ int main() {
 
 		free (cmdInput);
 		free (arrCmd);
-		
-		/*
-		* After reading user input, the steps are: 
-		* (1) fork a child process using fork()
-		* (2) the child process will invoke execvp()
-		* (3) parent will invoke wait() unless command included & 
-		*/
 	} 
 	free (prevCommand);
 	return 0;
