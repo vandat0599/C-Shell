@@ -9,12 +9,14 @@
 #define MAX_LINE 80 /* The maximum length command */
 
 char **getInput(char *input) {
+	char* inputCpy = malloc(strlen(input)+1);
+	strcpy(inputCpy,input);
     char **command = malloc(MAX_LINE * sizeof(char *));
     char *separator = " ";
     char *parsed;
     int index = 0;
 
-    parsed = strtok(input, separator);
+    parsed = strtok(inputCpy, separator);
     while (parsed != NULL) {
         command[index] = parsed;
         index++;
@@ -28,7 +30,7 @@ char **getInput(char *input) {
 
 int main() { 
 	int stat_loc;
-	char** prevCommand;
+	char* prevCommand;
 	int hasPrev = 0;
 	while (1) {
 		char* cmdInput = malloc(MAX_LINE*sizeof(char*));
@@ -42,24 +44,15 @@ int main() {
 		}
 		if(strcmp(cmdInput,"!!")==0){
 			if(hasPrev){
-				int i = 0;
-				for(;(*(prevCommand+i)!=NULL);i++){
-					printf("run '%s'\n",(*(prevCommand+i)));
-					*(arrCmd+i) = *(prevCommand+i);
-				}
-				*(arrCmd+i) = NULL;
+				arrCmd = getInput(prevCommand);
 			}else{
 				printf("---No commands in history.\n");
 			}
 		}else{
 			hasPrev = 1;
 			int i = 0;
-			for(;(*(arrCmd+i)!=NULL);i++){
-				printf("set '%s'\n",(*(arrCmd+i)));
-				*(prevCommand+i) = *(arrCmd+i);
-			}
-			*(prevCommand+i) = NULL;
-
+			prevCommand = malloc(strlen(cmdInput)+1);
+			strcpy(prevCommand,cmdInput);
 		}
 		int index = 0;
 		while(arrCmd[index]){
