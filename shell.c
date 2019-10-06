@@ -1,7 +1,7 @@
 #include <stdio.h> 
 #include <sys/types.h> 
 #include <unistd.h> 
-#include<sys/wait.h> 
+#include <sys/wait.h> 
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
@@ -75,21 +75,28 @@ int main() {
 			strcpy(prevCommand,cmdInput);
 		}
 
-		// check Redirecting Input and Output
-		int hasLargerOpe = getIndex(arrCmd,">")!=-1;
-		int hasSmallerOpe = getIndex(arrCmd,"<") != -1;
-		char operatorRedirect = (hasLargerOpe||hasSmallerOpe)?(hasLargerOpe?'>':'<'):' ';
-		int indexOperatorRedirect = hasLargerOpe?getIndex(arrCmd,">"):getIndex(arrCmd,"<");
-		arrCmd[indexOperatorRedirect] = NULL;
-		int canRedirect = operatorRedirect!=' ' && arrCmd[indexOperatorRedirect + 1] != NULL;
-		printf(">: %d, <: %d, operator: %c, index: %d",hasLargerOpe, hasSmallerOpe, operatorRedirect, indexOperatorRedirect);
-
 		//check & in cmd for running cmd parallel
 		int indexOfAndOperator = getIndex(arrCmd,"&");
 		int canRunParallel = indexOfAndOperator!=-1?1:0;
 		if(canRunParallel){
 			arrCmd[getIndex(arrCmd,"&")] = NULL;
 		}
+
+		// check Redirecting Input and Output
+		int hasLargerOpe = getIndex(arrCmd,">")!=-1;
+		int hasSmallerOpe = getIndex(arrCmd,"<") != -1;
+		char operatorRedirect = (hasLargerOpe||hasSmallerOpe)?(hasLargerOpe?'>':'<'):' ';
+		int indexOperatorRedirect = hasLargerOpe?getIndex(arrCmd,">"):getIndex(arrCmd,"<");
+		char* filePath;
+		if(operatorRedirect == '<'){
+			arrCmd[indexOperatorRedirect] = arrCmd[indexOperatorRedirect+1];
+			arrCmd[indexOperatorRedirect+1] = NULL;
+			filePath = arrCmd[indexOperatorRedirect];
+		}else{
+			arrCmd[indexOperatorRedirect] = NULL;
+			filePath = arrCmd[indexOperatorRedirect+1];
+		}
+		int canRedirect = operatorRedirect!=' ' && arrCmd[indexOperatorRedirect + 1] != NULL;
 
 		//create a child process
 		int child_pid = fork();
@@ -98,11 +105,11 @@ int main() {
 
 			//Redirecting Input and Output
 			if(canRedirect){
-				if (getDup2FileDiscriptor(arrCmd[indexOperatorRedirect+1],operatorRedirect)==-1){
+				int dup2Res = getDup2FileDiscriptor(filePath,operatorRedirect);
+				if (dup2Res==-1){
 					printf("dup2 err\n");
 				}
 			}
-
             execvp(arrCmd[0], arrCmd);
 			if(strcmp(cmdInput,"!!")!=0){
             	printf("---dddunix bash '%s': command not found\n",cmdInput);
